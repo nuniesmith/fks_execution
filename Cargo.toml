@@ -19,3 +19,6 @@ reqwest = { workspace = true }
 axum = { version = "0.7", features = ["json"] }
 hyper = { version = "1", features = ["full"] }
 tower = "0.4"
+
+[dependencies]
+shared-rust = { path = "shared/rust" }

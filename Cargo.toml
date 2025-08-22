@@ -1,0 +1,21 @@
+[package]
+name = "fks-execution"
+version = "0.1.0"
+edition = "2021"
+description = "Fast execution & signal simulation API built on node network."
+
+[dependencies]
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rayon = { workspace = true }
+chrono = { workspace = true }
+reqwest = { workspace = true }
+axum = { version = "0.7", features = ["json"] }
+hyper = { version = "1", features = ["full"] }
+tower = "0.4"

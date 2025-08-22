@@ -1,0 +1,9 @@
+[submodule "shared/rust"]
+	path = shared/rust
+	url = https://github.com/nuniesmith/shared-rust.git
+[submodule "shared/schema"]
+	path = shared/schema
+	url = https://github.com/nuniesmith/shared-schema.git
+[submodule "shared/scripts"]
+	path = shared/scripts
+	url = https://github.com/nuniesmith/shared-scripts.git

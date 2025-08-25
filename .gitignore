@@ -299,7 +299,7 @@ outputs/
 !build/.gitkeep
 !docs/.gitkeep
 
-fks-ssh-keys
+fks_ssh-keys
 # Local environment marker
 .local
 

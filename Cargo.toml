@@ -1,5 +1,5 @@
 [package]
-name = "fks-execution"
+name = "fks_execution"
 version = "0.1.0"
 edition = "2021"
 description = "Fast execution & signal simulation API built on node network."
@@ -19,4 +19,4 @@ reqwest = { workspace = true }
 axum = { version = "0.7", features = ["json"] }
 hyper = { version = "1", features = ["full"] }
 tower = "0.4"
-shared-rust = { path = "shared/rust" }
+shared_rust = { path = "shared/rust" }

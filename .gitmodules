@@ -3,7 +3,7 @@
 	url = https://github.com/nuniesmith/shared_rust
 [submodule "shared/shared_schema"]
 	path = shared/shared_schema
-	url = https://github.com/nuniesmith/shared_schema.git
+	url = https://github.com/nuniesmith/shared_schema
 [submodule "shared/shared_scripts"]
 	path = shared/shared_scripts
 	url = https://github.com/nuniesmith/shared-scripts.git

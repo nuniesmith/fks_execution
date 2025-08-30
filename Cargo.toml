@@ -5,18 +5,17 @@ edition = "2021"
 description = "Fast execution & signal simulation API built on node network."
 
 [dependencies]
-clap = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-anyhow = { workspace = true }
-thiserror = { workspace = true }
-tokio = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-rayon = { workspace = true }
-chrono = { workspace = true }
-reqwest = { workspace = true }
+clap = { version = "4.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+rayon = "1.7"
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.11", features = ["json"] }
 axum = { version = "0.7", features = ["json"] }
 hyper = { version = "1", features = ["full"] }
 tower = "0.4"
-shared_rust = { path = "shared/rust" }

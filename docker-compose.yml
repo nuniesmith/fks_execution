@@ -2,18 +2,20 @@ services:
   fks_execution:
     build:
       context: .
-      dockerfile: shared/shared_docker/templates/Dockerfile.rust
+      dockerfile: Dockerfile
     working_dir: /app
+    command: ["/usr/local/bin/fks_execution", "--listen", "0.0.0.0:4700"]
     environment:
       TZ: America/Toronto
       SERVICE_PORT: 4700
-      RUST_LOG: info
+      RUST_LOG: debug
     ports:
       - "4700:4700"
     volumes:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
       - ./logs:/app/logs
+      - ./debug-start.sh:/app/debug-start.sh:ro
       - rust_target:/app/target
     networks: [fks_net]
     healthcheck:
@@ -28,4 +30,4 @@ volumes:
 
 networks:
   fks_net:
-    name: fks_net
+    external: true

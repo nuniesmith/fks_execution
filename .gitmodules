@@ -15,10 +15,10 @@
 	url = https://github.com/nuniesmith/shared_actions.git
 [submodule "shared/shared_nginx"]
 	path = shared/shared_nginx
-	url = https://github.com/nuniesmith/shared_nginx
+	url = https://github.com/nuniesmith/shared_nginx.git
 [submodule "shared/shared_python"]
 	path = shared/shared_python
 	url = https://github.com/nuniesmith/shared_python.git
 [submodule "shared/shared_react"]
 	path = shared/shared_react
-	url = https://github.com/nuniesmith/shared_react
+	url = https://github.com/nuniesmith/shared_react.git

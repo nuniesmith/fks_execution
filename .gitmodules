@@ -1,15 +1,15 @@
-[submodule "shared/shared_rust"]
-	path = shared/shared_rust
-	url = https://github.com/nuniesmith/shared_rust.git
-[submodule "shared/shared_schema"]
-	path = shared/shared_schema
-	url = https://github.com/nuniesmith/shared_schema.git
 [submodule "shared/shared_scripts"]
 	path = shared/shared_scripts
 	url = https://github.com/nuniesmith/shared_scripts.git
+[submodule "shared/shared_schema"]
+	path = shared/shared_schema
+	url = https://github.com/nuniesmith/shared_schema.git
 [submodule "shared/shared_docker"]
 	path = shared/shared_docker
 	url = https://github.com/nuniesmith/shared_docker.git
+[submodule "shared/shared_rust"]
+	path = shared/shared_rust
+	url = https://github.com/nuniesmith/shared_rust.git
 [submodule "shared/shared_actions"]
 	path = shared/shared_actions
 	url = https://github.com/nuniesmith/shared_actions.git

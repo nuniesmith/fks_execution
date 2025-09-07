@@ -4,7 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     working_dir: /app
-    command: ["/usr/local/bin/fks_execution", "--listen", "0.0.0.0:4700"]
+    # Use wrapper script to keep container alive and expose logs if binary exits immediately
+    command: ["/bin/sh", "-c", "/app/entrypoint-wrapper.sh"]
     environment:
       TZ: America/Toronto
       SERVICE_PORT: 4700
@@ -17,6 +18,7 @@ services:
       - ./logs:/app/logs
       - ./debug-start.sh:/app/debug-start.sh:ro
       - rust_target:/app/target
+      - ./entrypoint-wrapper.sh:/app/entrypoint-wrapper.sh:ro
     networks: [fks_net]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:4700/health || exit 1"]

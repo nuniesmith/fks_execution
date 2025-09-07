@@ -19,8 +19,15 @@ struct AppState { start: Instant }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    println!("[execution] main_enter");
+    // Install a panic hook to surface any silent panics
+    std::panic::set_hook(Box::new(|info| {
+        eprintln!("[panic] {info}");
+    }));
     tracing_subscriber::fmt::init();
+    tracing::info!("startup_begin");
     let cli = Cli::parse();
+    tracing::info!(listen = %cli.listen, "parsed_cli");
     let state = AppState { start: Instant::now() };
     let signal_routes = Router::new()
         .route("/execute/signal", get(get_signal_handler))
@@ -30,18 +37,26 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(health_handler))
         .merge(signal_routes)
         .with_state(Arc::new(state));
-    let addr: SocketAddr = cli.listen.parse()?;
-    tracing::info!(%addr, "execution api listening");
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-
+    let addr: SocketAddr = match cli.listen.parse() { Ok(a) => a, Err(e) => { tracing::error!(error=%e, "addr_parse_failed"); return Err(e.into()); } };
+    tracing::info!(%addr, "binding_listener");
+    let listener = match tokio::net::TcpListener::bind(addr).await { Ok(l) => l, Err(e) => { tracing::error!(error=%e, "bind_failed"); return Err(e.into()); } };
+    tracing::info!("listener_bound");
     let server = axum::serve(listener, app);
+    tracing::info!("server_future_created");
     tokio::select! {
-        res = server => { res?; }
+        res = server => {
+            if let Err(e) = res { tracing::error!(error=%e, "server_terminated_error"); }
+            tracing::warn!("server_future_completed_unexpectedly");
+        }
         _ = shutdown_signal() => {
             tracing::info!("shutdown signal received");
         }
     }
-    Ok(())
+    // If we get here the server ended unexpectedly; keep process alive for inspection
+    tracing::warn!("execution_main_exiting_loop_enter");
+    loop {
+        tokio::time::sleep(Duration::from_secs(3600)).await;
+    }
 }
 
 async fn shutdown_signal() {

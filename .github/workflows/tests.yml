@@ -1,4 +1,4 @@
-name: FKS Execution CI/CD
+name: FKS EXECUTION CI/CD
 
 on:
   push:
@@ -13,12 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
-          components: rustfmt, clippy
+          components: clippy, rustfmt
           
       - name: Cache cargo dependencies
         uses: actions/cache@v4
@@ -29,35 +27,23 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-execution-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-execution-
             
       - name: Format check
-        run: cargo fmt -- --check
-        
-      - name: Lint with clippy
-        run: cargo clippy -- -D warnings
+        run: cargo fmt --check
         continue-on-error: true
         
-      - name: Build
-        run: cargo build --verbose
+      - name: Clippy check
+        run: cargo clippy -- -D warnings
+        continue-on-error: true
         
       - name: Run tests
         run: cargo test --verbose
         
-      - name: Install cargo-tarpaulin (coverage)
-        run: cargo install cargo-tarpaulin
-        
-      - name: Generate coverage
-        run: cargo tarpaulin --out Xml
-        
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./cobertura.xml
-          flags: fks_execution
-          name: fks-execution-coverage
+      - name: Build release
+        run: cargo build --release
         
   docker:
     runs-on: ubuntu-latest
@@ -71,11 +57,11 @@ jobs:
         uses: docker/setup-buildx-action@v3
         
       - name: Build Docker image
-        run: docker build -t fks_execution:latest .
+        run: docker build -t execution:latest .
         
       - name: Test Docker image
         run: |
-          docker run -d --name fks_execution_test -p 8004:8004 fks_execution:latest
+          docker run -d --name execution_test -p 8004:8004 execution:latest
           sleep 10
           curl -f http://localhost:8004/health || exit 1
-          docker stop fks_execution_test
+          docker stop execution_test

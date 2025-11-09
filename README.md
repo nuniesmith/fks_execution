@@ -260,12 +260,22 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-## Deployment
+## 🐳 Docker
 
-### Docker Build
+### Build
 
 ```bash
-docker build -t fks_execution:latest .
+docker build -t nuniesmith/fks:execution-latest .
+```
+
+### Run
+
+```bash
+docker run -p 8004:8004 \
+  -e DATABASE_URL=postgresql://fks_user:password@db:5432/trading_db \
+  -e BINANCE_API_KEY=your-api-key \
+  -e BINANCE_SECRET_KEY=your-secret-key \
+  nuniesmith/fks:execution-latest
 ```
 
 ### Health Checks
@@ -273,6 +283,40 @@ docker build -t fks_execution:latest .
 - **Endpoint**: `GET /health`
 - **Expected**: `{"status": "healthy", "service": "fks_execution", "exchange_connected": true}`
 - **Dependencies**: Exchange APIs, PostgreSQL
+
+## ☸️ Kubernetes
+
+### Deployment
+
+```bash
+# Deploy using Helm
+cd repo/main/k8s/charts/fks-platform
+helm install fks-platform . -n fks-trading
+
+# Or using manifests
+kubectl apply -f repo/main/k8s/manifests/all-services.yaml -n fks-trading
+```
+
+### Health Checks
+
+Kubernetes probes:
+- **Liveness**: `GET /live`
+- **Readiness**: `GET /ready` (checks exchange connectivity)
+
+### Configuration
+
+Ensure exchange API keys are set in Kubernetes secrets:
+```bash
+kubectl create secret generic fks-secrets -n fks-trading \
+  --from-literal=binance-api-key=your-key \
+  --from-literal=binance-secret-key=your-secret
+```
+
+## 📚 Documentation
+
+- [API Documentation](docs/API.md) - Complete API reference
+- [Deployment Guide](docs/DEPLOYMENT.md) - Deployment instructions
+- [Exchange Integration](docs/EXCHANGES.md) - Exchange-specific guides
 
 ## Performance Considerations
 
@@ -353,8 +397,44 @@ FKS Execution responds with order confirmation:
 
 MIT License - See LICENSE file for details
 
+## 🔗 Integration
+
+### Dependencies
+
+- **PostgreSQL**: Order and position storage
+- **Exchange APIs**: Binance, Coinbase, Kraken
+- **fks_app**: Receives execution signals
+
+### Consumers
+
+- **fks_app**: Sends execution signals
+- **fks_main**: Service orchestration
+- **fks_web**: Order status display
+
+## 📊 Monitoring
+
+### Health Check Endpoints
+
+- `GET /health` - Service health (includes exchange connectivity)
+- `GET /metrics` - Prometheus metrics
+
+### Metrics
+
+- Order submission latency
+- Order success/failure rates
+- Exchange API response times
+- Circuit breaker status
+- Position tracking accuracy
+
+### Logging
+
+- Order lifecycle events
+- Exchange API interactions
+- Error tracking and retries
+- Circuit breaker state changes
+
 ---
 
-**Status**: Active Development  
-**Maintainer**: FKS Trading Platform Team  
-**Last Updated**: October 2025
+**Repository**: [nuniesmith/fks_execution](https://github.com/nuniesmith/fks_execution)  
+**Docker Image**: `nuniesmith/fks:execution-latest`  
+**Status**: Active Development

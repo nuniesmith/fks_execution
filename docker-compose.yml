@@ -1,0 +1,27 @@
+
+services:
+  fks_execution:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nuniesmith/fks_execution:latest
+    container_name: fks_execution
+    ports:
+      - "8004:8004"
+    environment:
+      - SERVICE_NAME=fks_execution
+      - SERVICE_PORT=8004
+      - RUST_LOG=info
+    networks:
+      - fks-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  fks-network:
+    external: true

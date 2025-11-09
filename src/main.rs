@@ -7,6 +7,7 @@ use serde::Deserialize;
 
 // Plugin framework
 mod plugins;
+mod health;
 use plugins::{
     registry::PluginRegistry, 
     ccxt::CCXTPlugin, 
@@ -93,6 +94,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/webhook/tradingview", post(tradingview_webhook_handler));
 
     let app = Router::new()
+        .merge(health::health_routes())
         .route("/health", get(health_handler))
         .merge(signal_routes)
         .merge(webhook_routes)

@@ -10,7 +10,7 @@ data:
   liveness_probe: |
     httpGet:
       path: /health
-      port: 8006
+      port: 8004
     initialDelaySeconds: 10
     periodSeconds: 30
     timeoutSeconds: 5
@@ -19,7 +19,7 @@ data:
   readiness_probe: |
     httpGet:
       path: /ready
-      port: 8006
+      port: 8004
     initialDelaySeconds: 5
     periodSeconds: 10
     timeoutSeconds: 3
@@ -46,11 +46,11 @@ spec:
       - name: fks_execution
         image: nuniesmith/fks_execution:latest
         ports:
-        - containerPort: 8006
+        - containerPort: 8004
         livenessProbe:
           httpGet:
             path: /health
-            port: 8006
+            port: 8004
           initialDelaySeconds: 10
           periodSeconds: 30
           timeoutSeconds: 5
@@ -58,7 +58,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /ready
-            port: 8006
+            port: 8004
           initialDelaySeconds: 5
           periodSeconds: 10
           timeoutSeconds: 3

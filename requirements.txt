@@ -18,7 +18,7 @@ python-jose[cryptography]==3.3.0
 
 # HTTP client
 httpx==0.25.2
-requests==2.31.0
+requests==2.32.5
 
 # Utilities
 python-dotenv==1.0.0

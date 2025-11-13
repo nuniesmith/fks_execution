@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: nuniesmith/fks_execution:latest
+    image: nuniesmith/fks:execution-latest
     container_name: fks_execution
     ports:
       - "8004:8004"

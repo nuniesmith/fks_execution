@@ -17,7 +17,7 @@ pydantic==2.5.0
 python-jose[cryptography]==3.3.0
 
 # HTTP client
-httpx==0.25.2
+httpx==0.28.1
 requests==2.31.0
 
 # Utilities

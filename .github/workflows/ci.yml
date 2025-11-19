@@ -1,3 +1,4 @@
+# GitHub Actions CI workflow for the execution service
 name: CI
 
 on:
@@ -17,10 +18,11 @@ jobs:
     uses: nuniesmith/fks_actions/.github/workflows/ci-rust-service.yml@main
     with:
       service_name: execution
-      service_port: '8005'
-      rust_toolchain: 'stable'
+      service_port: "8005"
+      rust_toolchain: "stable"
       needs_openssl: true
-      dockerfile_path: './docker/Dockerfile'
+      dockerfile_path: "./docker/Dockerfile"
       healthcheck_enabled: false
     secrets:
       docker_token: ${{ secrets.DOCKER_TOKEN }}
+      codecov_token: ${{ secrets.CODECOV_TOKEN }}

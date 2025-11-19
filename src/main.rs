@@ -105,7 +105,6 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .merge(health::health_routes())
-        .route("/health", get(health_handler))
         .merge(signal_routes)
         .merge(webhook_routes)
         .with_state(Arc::new(state));

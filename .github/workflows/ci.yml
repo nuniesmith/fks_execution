@@ -20,5 +20,6 @@ jobs:
       service_port: '8005'
       rust_toolchain: 'stable'
       needs_openssl: true
+      dockerfile_path: './docker/Dockerfile'
     secrets:
       docker_token: ${{ secrets.DOCKER_TOKEN }}

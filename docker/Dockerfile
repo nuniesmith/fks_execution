@@ -53,7 +53,7 @@ COPY --from=builder --chown=appuser:appuser /app/fks_execution /app/fks_executio
 
 # Environment variables
 ENV SERVICE_NAME=fks_execution \
-    SERVICE_PORT=8004 \
+    SERVICE_PORT=8005 \
     RUST_LOG=info
 
 # Switch to non-root user
@@ -61,10 +61,10 @@ USER appuser
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8004/health || exit 1
+    CMD curl -f http://localhost:8005/health || exit 1
 
 # Expose port
-EXPOSE 8004
+EXPOSE 8005
 
 # Run service
 CMD ["./fks_execution"]

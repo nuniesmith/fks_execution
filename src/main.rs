@@ -16,7 +16,11 @@ use plugins::{
 };
 
 #[derive(Parser, Debug)]
-#[command(version, about="FKS Execution API")] struct Cli { #[arg(long, default_value="0.0.0.0:4700")] listen: String }
+#[command(version, about="FKS Execution API")] 
+struct Cli { 
+    #[arg(long, default_value="0.0.0.0:8005")] 
+    listen: String 
+}
 
 #[derive(Serialize, Clone)] struct Signal { symbol: String, rsi: f64, ema: f64, risk_allowance: f64, latency_ms: u128 }
 
@@ -58,7 +62,13 @@ async fn main() -> anyhow::Result<()> {
     }));
     tracing_subscriber::fmt::init();
     tracing::info!("startup_begin");
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
+    
+    // Override listen address with SERVICE_PORT if set
+    if let Ok(port) = std::env::var("SERVICE_PORT") {
+        cli.listen = format!("0.0.0.0:{}", port);
+    }
+    
     tracing::info!(listen = %cli.listen, "parsed_cli");
     
     // Initialize plugin registry

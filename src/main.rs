@@ -60,9 +60,13 @@ async fn main() -> anyhow::Result<()> {
     std::panic::set_hook(Box::new(|info| {
         eprintln!("[panic] {info}");
     }));
+    eprintln!("[execution] initializing tracing");
     tracing_subscriber::fmt::init();
+    eprintln!("[execution] tracing initialized");
     tracing::info!("startup_begin");
+    eprintln!("[execution] parsing CLI");
     let mut cli = Cli::parse();
+    eprintln!("[execution] CLI parsed: listen={}", cli.listen);
     
     // Override listen address with SERVICE_PORT if set
     if let Ok(port) = std::env::var("SERVICE_PORT") {
@@ -74,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize plugin registry
     let registry = Arc::new(PluginRegistry::new());
     
-    // Initialize CCXT plugin
+    // Initialize CCXT plugin (non-fatal - service can run without it)
     let mut ccxt = CCXTPlugin::new("binance");
     let ccxt_config = serde_json::json!({
         "base_url": std::env::var("CCXT_BASE_URL").unwrap_or_else(|_| "http://localhost:8000".to_string()),
@@ -83,13 +87,16 @@ async fn main() -> anyhow::Result<()> {
         "testnet": std::env::var("TESTNET").unwrap_or_else(|_| "false".to_string()) == "true"
     });
     
-    if let Err(e) = ccxt.init(ccxt_config).await {
-        tracing::error!(error=%e, "ccxt_plugin_init_failed");
-        return Err(anyhow::anyhow!("CCXT plugin init failed: {}", e));
+    match ccxt.init(ccxt_config).await {
+        Ok(_) => {
+            registry.register("binance".to_string(), Arc::new(ccxt)).await;
+            tracing::info!("ccxt_plugin_registered");
+        }
+        Err(e) => {
+            tracing::warn!(error=%e, "ccxt_plugin_init_failed_continuing_without");
+            // Continue without CCXT plugin - service can still run with other plugins
+        }
     }
-    
-    registry.register("binance".to_string(), Arc::new(ccxt)).await;
-    tracing::info!("ccxt_plugin_registered");
     
     let state = AppState { 
         start: Instant::now(),

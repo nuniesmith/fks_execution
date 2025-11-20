@@ -28,10 +28,13 @@ COPY src/ ./src/
 
 # Build the application with BuildKit cache mount for Cargo registry
 # Dependencies are already cached from the dummy build above
+# Clean target to ensure we rebuild the binary (not just dependencies)
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
+    rm -rf target/release/fks_execution && \
     cargo build --release && \
-    cp target/release/fks_execution /app/fks_execution
+    cp target/release/fks_execution /app/fks_execution && \
+    ls -lh /app/fks_execution
 
 # Runtime stage
 FROM debian:bookworm-slim

@@ -2,7 +2,9 @@
 //!
 //! Defines the plugin interface for modular execution backends (NinjaTrader, MT5, CCXT, etc.)
 
+pub mod bybit;
 pub mod ccxt;
+pub mod kucoin;
 pub mod mock;
 pub mod registry;
 

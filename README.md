@@ -83,11 +83,11 @@ repo/execution/
 │   │   ├── orders.rs        # Order endpoints
 │   │   ├── positions.rs     # Position endpoints
 │   │   └── health.rs        # Health check
-│   ├── exchanges/           # Exchange integrations
-│   │   ├── mod.rs
-│   │   ├── binance.rs       # Binance API wrapper
-│   │   ├── coinbase.rs      # Coinbase API wrapper
-│   │   └── traits.rs        # Common exchange traits
+│   ├── plugins/             # Plugin-based execution backends
+│   │   ├── mod.rs          # ExecutionPlugin trait
+│   │   ├── registry.rs     # Plugin registry
+│   │   ├── mock.rs         # Mock plugin for testing
+│   │   └── ccxt.rs         # CCXT integration plugin
 │   ├── models/              # Data models
 │   │   ├── mod.rs
 │   │   ├── order.rs         # Order model + FSM

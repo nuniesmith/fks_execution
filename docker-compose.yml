@@ -3,9 +3,9 @@ services:
   fks_execution:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
     image: nuniesmith/fks:execution-latest
-    container_name: fks_execution
+    container_name: fks-execution
     ports:
       - "8004:8004"
     environment:

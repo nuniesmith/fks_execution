@@ -1,4 +1,4 @@
-use axum::{routing::{get, post}, Router, Json, extract::State, http::StatusCode};
+use axum::{routing::{get, post}, Router, Json, extract::{State, Path, Query}, http::StatusCode};
 use clap::Parser;
 use serde::Serialize;
 use std::{net::SocketAddr, time::{Instant, Duration}, sync::Arc};
@@ -10,7 +10,9 @@ mod plugins;
 mod health;
 use plugins::{
     registry::PluginRegistry, 
-    ccxt::CCXTPlugin, 
+    ccxt::CCXTPlugin,
+    bybit::BybitPlugin,
+    kucoin::KuCoinPlugin,
     Order, OrderSide, OrderType,
     ExecutionPlugin
 };
@@ -51,6 +53,67 @@ struct WebhookResponse {
     success: bool,
     order_id: Option<String>,
     error: Option<String>,
+}
+
+/// Order creation request
+#[derive(Deserialize)]
+struct CreateOrderRequest {
+    exchange: String,
+    symbol: String,
+    side: String, // "buy" or "sell"
+    order_type: String, // "market", "limit", etc.
+    quantity: f64,
+    price: Option<f64>,
+    leverage: Option<i32>,
+    stop_loss: Option<f64>,
+    take_profit: Option<f64>,
+    category: Option<String>, // For Bybit: "linear", "spot", etc.
+}
+
+/// Order creation response
+#[derive(Serialize)]
+struct CreateOrderResponse {
+    success: bool,
+    order_id: Option<String>,
+    filled_quantity: f64,
+    average_price: f64,
+    error: Option<String>,
+    timestamp: i64,
+}
+
+/// Set leverage request
+#[derive(Deserialize)]
+struct SetLeverageRequest {
+    symbol: String,
+    leverage: i32,
+    category: Option<String>,
+}
+
+/// Set leverage response
+#[derive(Serialize)]
+struct SetLeverageResponse {
+    success: bool,
+    error: Option<String>,
+}
+
+/// Position query parameters
+#[derive(Deserialize)]
+struct PositionQuery {
+    exchange: String,
+    symbol: Option<String>,
+}
+
+/// Position response
+#[derive(Serialize)]
+struct PositionResponse {
+    symbol: String,
+    side: String,
+    size: f64,
+    entry_price: f64,
+    mark_price: f64,
+    unrealized_pnl: f64,
+    leverage: i32,
+    margin: f64,
 }
 
 #[tokio::main]
@@ -98,6 +161,70 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     
+    // Initialize Bybit plugin (non-fatal - service can run without it)
+    if let (Ok(api_key), Ok(api_secret)) = (
+        std::env::var("BYBIT_API_KEY"),
+        std::env::var("BYBIT_API_SECRET")
+    ) {
+        let mut bybit = BybitPlugin::new("bybit");
+        let bybit_config = serde_json::json!({
+            "api_key": api_key,
+            "api_secret": api_secret,
+            "testnet": std::env::var("BYBIT_TESTNET").unwrap_or_else(|_| "false".to_string()) == "true",
+            "category": std::env::var("BYBIT_CATEGORY").unwrap_or_else(|_| "linear".to_string()),
+            "leverage": std::env::var("BYBIT_LEVERAGE")
+                .unwrap_or_else(|_| "10".to_string())
+                .parse::<i32>()
+                .unwrap_or(10)
+        });
+        
+        match bybit.init(bybit_config).await {
+            Ok(_) => {
+                registry.register("bybit".to_string(), Arc::new(bybit)).await;
+                tracing::info!("bybit_plugin_registered");
+            }
+            Err(e) => {
+                tracing::warn!(error=%e, "bybit_plugin_init_failed_continuing_without");
+                // Continue without Bybit plugin - service can still run with other plugins
+            }
+        }
+    } else {
+        tracing::info!("bybit_api_keys_not_configured_skipping_bybit_plugin");
+    }
+    
+    // Initialize KuCoin plugin (Canada-compliant, non-fatal - service can run without it)
+    if let (Ok(api_key), Ok(api_secret), Ok(api_passphrase)) = (
+        std::env::var("KUCOIN_API_KEY"),
+        std::env::var("KUCOIN_API_SECRET"),
+        std::env::var("KUCOIN_API_PASSPHRASE")
+    ) {
+        let mut kucoin = KuCoinPlugin::new("kucoin");
+        let kucoin_config = serde_json::json!({
+            "api_key": api_key,
+            "api_secret": api_secret,
+            "api_passphrase": api_passphrase,
+            "testnet": std::env::var("KUCOIN_TESTNET").unwrap_or_else(|_| "false".to_string()) == "true",
+            "trading_type": std::env::var("KUCOIN_TRADING_TYPE").unwrap_or_else(|_| "futures".to_string()),
+            "leverage": std::env::var("KUCOIN_LEVERAGE")
+                .unwrap_or_else(|_| "10".to_string())
+                .parse::<i32>()
+                .unwrap_or(10)
+        });
+        
+        match kucoin.init(kucoin_config).await {
+            Ok(_) => {
+                registry.register("kucoin".to_string(), Arc::new(kucoin)).await;
+                tracing::info!("kucoin_plugin_registered");
+            }
+            Err(e) => {
+                tracing::warn!(error=%e, "kucoin_plugin_init_failed_continuing_without");
+                // Continue without KuCoin plugin - service can still run with other plugins
+            }
+        }
+    } else {
+        tracing::info!("kucoin_api_credentials_not_configured_skipping_kucoin_plugin");
+    }
+    
     let state = AppState { 
         start: Instant::now(),
         registry: registry.clone()
@@ -109,11 +236,81 @@ async fn main() -> anyhow::Result<()> {
     
     let webhook_routes = Router::new()
         .route("/webhook/tradingview", post(tradingview_webhook_handler));
+    
+    // Order execution API routes
+    let order_routes = Router::new()
+        .route("/api/v1/orders", post(create_order_handler))
+        .route("/api/v1/exchanges/{exchange}/leverage", post(set_leverage_handler))
+        .route("/api/v1/positions", get(get_positions_handler));
 
+    // Set up Prometheus metrics
+    let (prometheus_layer, metric_handle) = {
+        use axum_prometheus::PrometheusMetricLayer;
+        use prometheus::{Gauge, IntGaugeVec, Registry, Encoder, TextEncoder};
+        use std::env;
+        
+        let (layer, axum_handle) = PrometheusMetricLayer::pair();
+        let registry = Registry::new();
+        
+        // Build info
+        let commit = env::var("GIT_COMMIT")
+            .or_else(|_| env::var("COMMIT_SHA"))
+            .unwrap_or_else(|_| "unknown".to_string());
+        let build_date = env::var("BUILD_DATE")
+            .or_else(|_| env::var("BUILD_TIMESTAMP"))
+            .unwrap_or_else(|_| "unknown".to_string());
+        
+        let build_info = Gauge::with_opts(
+            prometheus::opts!(
+                "fks_build_info",
+                "Build information for FKS service"
+            )
+            .const_label("service", "fks_execution")
+            .const_label("version", "0.1.0")
+            .const_label("commit", &commit[..commit.len().min(8)])
+            .const_label("build_date", &build_date),
+        ).expect("Failed to create build_info metric");
+        build_info.set(1.0);
+        registry.register(Box::new(build_info)).expect("Failed to register build_info");
+        
+        // Service health
+        let service_health = IntGaugeVec::new(
+            prometheus::opts!("fks_service_health", "Service health status (1=healthy, 0=unhealthy)"),
+            &["service"],
+        ).expect("Failed to create service_health metric");
+        service_health.with_label_values(&["fks_execution"]).set(1);
+        registry.register(Box::new(service_health)).expect("Failed to register service_health");
+        
+        // Create combined handle
+        struct MetricHandle {
+            registry: Registry,
+            axum_handle: axum_prometheus::MetricHandle,
+        }
+        impl MetricHandle {
+            fn render(&self) -> String {
+                let mut output = self.axum_handle.render();
+                let encoder = TextEncoder::new();
+                let metric_families = self.registry.gather();
+                let mut buffer = Vec::new();
+                if encoder.encode(&metric_families, &mut buffer).is_ok() {
+                    if let Ok(metrics_text) = String::from_utf8(buffer) {
+                        output.push_str(&metrics_text);
+                    }
+                }
+                output
+            }
+        }
+        let handle = MetricHandle { registry, axum_handle };
+        (layer, handle)
+    };
+    
     let app = Router::new()
         .merge(health::health_routes())
         .merge(signal_routes)
         .merge(webhook_routes)
+        .merge(order_routes)
+        .route("/metrics", get(|| async move { metric_handle.render() }))
+        .layer(prometheus_layer)
         .with_state(Arc::new(state));
     let addr: SocketAddr = match cli.listen.parse() { Ok(a) => a, Err(e) => { tracing::error!(error=%e, "addr_parse_failed"); return Err(e.into()); } };
     tracing::info!(%addr, "binding_listener");
@@ -255,20 +452,218 @@ async fn tradingview_webhook_handler(
             }
         },
         Err(e) => {
-            tracing::error!(error = %e, "plugin_execution_error");
+            tracing::error!(error = %e, "order_execution_error");
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(WebhookResponse {
                     success: false,
                     order_id: None,
-                    error: Some(e.to_string()),
+                    error: Some(format!("Execution error: {}", e))
                 })
             ))
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    include!("../tests/webhook_integration_test.rs");
+/// Create order endpoint: POST /api/v1/orders
+async fn create_order_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<CreateOrderRequest>
+) -> Result<Json<CreateOrderResponse>, (StatusCode, Json<CreateOrderResponse>)> {
+    tracing::info!(
+        exchange = %req.exchange,
+        symbol = %req.symbol,
+        side = %req.side,
+        order_type = %req.order_type,
+        "create_order_request"
+    );
+    
+    // Convert side
+    let side = match req.side.to_lowercase().as_str() {
+        "buy" => OrderSide::Buy,
+        "sell" => OrderSide::Sell,
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(CreateOrderResponse {
+                    success: false,
+                    order_id: None,
+                    filled_quantity: 0.0,
+                    average_price: 0.0,
+                    error: Some(format!("Invalid side: {}", req.side)),
+                    timestamp: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as i64,
+                })
+            ));
+        }
+    };
+    
+    // Convert order type
+    let order_type = match req.order_type.to_lowercase().as_str() {
+        "market" => OrderType::Market,
+        "limit" => OrderType::Limit,
+        "stop" => OrderType::Stop,
+        "stop_limit" | "stoplimit" => OrderType::StopLimit,
+        "take_profit" | "takeprofit" => OrderType::TakeProfit,
+        "stop_loss" | "stoploss" => OrderType::StopLoss,
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(CreateOrderResponse {
+                    success: false,
+                    order_id: None,
+                    filled_quantity: 0.0,
+                    average_price: 0.0,
+                    error: Some(format!("Invalid order_type: {}", req.order_type)),
+                    timestamp: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as i64,
+                })
+            ));
+        }
+    };
+    
+    // Create order
+    let order = Order {
+        symbol: req.symbol.clone(),
+        side,
+        order_type,
+        quantity: req.quantity,
+        price: req.price,
+        stop_loss: req.stop_loss,
+        take_profit: req.take_profit,
+        confidence: 0.7, // Default confidence
+    };
+    
+    // Execute order via specified plugin
+    match state.registry.execute_order(order, Some(&req.exchange)).await {
+        Ok(result) => {
+            tracing::info!(
+                exchange = %req.exchange,
+                symbol = %req.symbol,
+                order_id = ?result.order_id,
+                filled = result.filled_quantity,
+                "order_executed"
+            );
+            Ok(Json(CreateOrderResponse {
+                success: result.success,
+                order_id: result.order_id,
+                filled_quantity: result.filled_quantity,
+                average_price: result.average_price,
+                error: result.error,
+                timestamp: result.timestamp,
+            }))
+        },
+        Err(e) => {
+            tracing::error!(exchange = %req.exchange, error = %e, "order_execution_error");
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(CreateOrderResponse {
+                    success: false,
+                    order_id: None,
+                    filled_quantity: 0.0,
+                    average_price: 0.0,
+                    error: Some(format!("Execution error: {}", e)),
+                    timestamp: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as i64,
+                })
+            ))
+        }
+    }
+}
+
+/// Set leverage endpoint: POST /api/v1/exchanges/{exchange}/leverage
+async fn set_leverage_handler(
+    State(state): State<Arc<AppState>>,
+    Path(exchange): Path<String>,
+    Json(req): Json<SetLeverageRequest>
+) -> Result<Json<SetLeverageResponse>, (StatusCode, Json<SetLeverageResponse>)> {
+    tracing::info!(
+        exchange = %exchange,
+        symbol = %req.symbol,
+        leverage = %req.leverage,
+        "set_leverage_request"
+    );
+    
+    // Get plugin
+    let _plugin = state.registry.get(&exchange).await
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(SetLeverageResponse {
+                    success: false,
+                    error: Some(format!("Exchange plugin '{}' not found", exchange)),
+                })
+            )
+        })?;
+    
+    // Check if plugin is Bybit plugin (has set_leverage method)
+    // We need to downcast to BybitPlugin to access set_leverage
+    // For now, we'll try to get it as a trait object and call a method
+    // This requires adding set_leverage to the ExecutionPlugin trait or using a type check
+    
+    // For now, return an error if not Bybit
+    if exchange != "bybit" {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(SetLeverageResponse {
+                success: false,
+                error: Some(format!("Leverage setting only supported for Bybit, got: {}", exchange)),
+            })
+        ));
+    }
+    
+    // Try to get Bybit plugin from registry and call set_leverage
+    // This is a limitation - we need to store plugin type information
+    // For now, we'll require Bybit to be the exchange
+    // TODO: Add set_leverage to ExecutionPlugin trait or use a plugin-specific registry
+    
+    // Since we can't easily downcast, we'll need to add this to the trait or use a workaround
+    // For Day 17, we'll document this limitation and implement the basic structure
+    
+    Err((
+        StatusCode::NOT_IMPLEMENTED,
+        Json(SetLeverageResponse {
+            success: false,
+            error: Some("Leverage setting requires plugin-specific implementation. Use Bybit plugin directly.".to_string()),
+        })
+    ))
+}
+
+/// Get positions endpoint: GET /api/v1/positions?exchange=bybit&symbol=BTCUSDT
+async fn get_positions_handler(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<PositionQuery>
+) -> Result<Json<PositionResponse>, (StatusCode, Json<serde_json::Value>)> {
+    tracing::info!(
+        exchange = %params.exchange,
+        symbol = ?params.symbol,
+        "get_positions_request"
+    );
+    
+    // Get plugin
+    let _plugin = state.registry.get(&params.exchange).await
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "error": format!("Exchange plugin '{}' not found", params.exchange)
+                }))
+            )
+        })?;
+    
+    // For now, position queries require plugin-specific implementation
+    // This is similar to leverage - we need plugin-specific methods or trait extensions
+    
+    Err((
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Position queries require plugin-specific implementation. Use Bybit plugin directly."
+        }))
+    ))
 }

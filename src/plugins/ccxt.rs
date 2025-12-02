@@ -1,6 +1,7 @@
 //! CCXT Plugin for Crypto/Forex Exchanges
 //!
-//! Integrates with the Python CCXT service (app_ccxt_simple.py) via HTTP
+//! Integrates with external CCXT services via HTTP API calls.
+//! The CCXT service should be running separately and accessible via HTTP.
 
 use super::{ExecutionPlugin, ExecutionResult, MarketData, Order, OrderSide, OrderType};
 use async_trait::async_trait;

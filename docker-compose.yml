@@ -12,6 +12,11 @@ services:
       - SERVICE_NAME=fks_execution
       - SERVICE_PORT=8004
       - RUST_LOG=info
+      # OpenAlgo integration
+      - OPENALGO_URL=${OPENALGO_URL:-http://openalgo:5000}
+      - OPENALGO_API_KEY=${OPENALGO_API_KEY:-}
+      - OPENALGO_SANDBOX=${OPENALGO_SANDBOX:-true}
+      - OPENALGO_BROKER=${OPENALGO_BROKER:-paper}
     networks:
       - fks-network
     restart: unless-stopped
@@ -21,6 +26,47 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    depends_on:
+      openalgo:
+        condition: service_healthy
+        required: false
+
+  # OpenAlgo - Self-hosted algo trading bridge for Indian markets
+  # Documentation: https://github.com/marketcalls/openalgo
+  # Supports: Zerodha, Fyers, Dhan, Angel One, and 20+ other brokers
+  openalgo:
+    image: marketcalls/openalgo:latest
+    container_name: fks-openalgo
+    ports:
+      - "5000:5000"
+    environment:
+      # Sandbox Mode: true = paper trading, false = live trading
+      - SANDBOX_MODE=${OPENALGO_SANDBOX:-true}
+      # Broker: paper, zerodha, fyers, dhan, angel, etc.
+      - BROKER=${OPENALGO_BROKER:-paper}
+      # API credentials (set in .env)
+      - API_KEY=${OPENALGO_API_KEY:-}
+      - API_SECRET=${OPENALGO_API_SECRET:-}
+      # Logging
+      - LOG_LEVEL=INFO
+    volumes:
+      # Persist OpenAlgo data (orders, positions, logs)
+      - openalgo_data:/app/data
+    networks:
+      - fks-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    profiles:
+      - indian-markets  # Only start when profile is specified
+
+volumes:
+  openalgo_data:
+    driver: local
 
 networks:
   fks-network:

@@ -1,5 +1,5 @@
 /// Health check endpoints for FKS services
-use axum::{response::Json, routing::get, Router};
+use axum::{response::{Json, IntoResponse}, routing::get, Router, http::StatusCode};
 use serde_json::{json, Value};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -11,6 +11,7 @@ where
         .route("/health", get(health_check))
         .route("/ready", get(readiness_check))
         .route("/live", get(liveness_check))
+        .route("/metrics", get(metrics))
 }
 
 async fn health_check() -> Json<Value> {
@@ -46,4 +47,17 @@ async fn liveness_check() -> Json<Value> {
             .unwrap()
             .as_secs()
     }))
+}
+
+async fn metrics() -> impl IntoResponse {
+    // Return Prometheus-format metrics with fks_build_info
+    let version = env!("CARGO_PKG_VERSION");
+    let metrics_text = format!(
+        r#"# HELP fks_build_info Build information for the service
+# TYPE fks_build_info gauge
+fks_build_info{{service="fks_execution",version="{}"}} 1
+"#,
+        version
+    );
+    (StatusCode::OK, [("content-type", "text/plain; version=0.0.4; charset=utf-8")], metrics_text)
 }

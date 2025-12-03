@@ -242,75 +242,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/v1/orders", post(create_order_handler))
         .route("/api/v1/exchanges/{exchange}/leverage", post(set_leverage_handler))
         .route("/api/v1/positions", get(get_positions_handler));
-
-    // Set up Prometheus metrics
-    let (prometheus_layer, metric_handle) = {
-        use axum_prometheus::PrometheusMetricLayer;
-        use prometheus::{Gauge, IntGaugeVec, Registry, Encoder, TextEncoder};
-        use std::env;
-        
-        let (layer, axum_handle) = PrometheusMetricLayer::pair();
-        let registry = Registry::new();
-        
-        // Build info
-        let commit = env::var("GIT_COMMIT")
-            .or_else(|_| env::var("COMMIT_SHA"))
-            .unwrap_or_else(|_| "unknown".to_string());
-        let build_date = env::var("BUILD_DATE")
-            .or_else(|_| env::var("BUILD_TIMESTAMP"))
-            .unwrap_or_else(|_| "unknown".to_string());
-        
-        let build_info = Gauge::with_opts(
-            prometheus::opts!(
-                "fks_build_info",
-                "Build information for FKS service"
-            )
-            .const_label("service", "fks_execution")
-            .const_label("version", "0.1.0")
-            .const_label("commit", &commit[..commit.len().min(8)])
-            .const_label("build_date", &build_date),
-        ).expect("Failed to create build_info metric");
-        build_info.set(1.0);
-        registry.register(Box::new(build_info)).expect("Failed to register build_info");
-        
-        // Service health
-        let service_health = IntGaugeVec::new(
-            prometheus::opts!("fks_service_health", "Service health status (1=healthy, 0=unhealthy)"),
-            &["service"],
-        ).expect("Failed to create service_health metric");
-        service_health.with_label_values(&["fks_execution"]).set(1);
-        registry.register(Box::new(service_health)).expect("Failed to register service_health");
-        
-        // Create combined handle
-        struct MetricHandle {
-            registry: Registry,
-            axum_handle: axum_prometheus::MetricHandle,
-        }
-        impl MetricHandle {
-            fn render(&self) -> String {
-                let mut output = self.axum_handle.render();
-                let encoder = TextEncoder::new();
-                let metric_families = self.registry.gather();
-                let mut buffer = Vec::new();
-                if encoder.encode(&metric_families, &mut buffer).is_ok() {
-                    if let Ok(metrics_text) = String::from_utf8(buffer) {
-                        output.push_str(&metrics_text);
-                    }
-                }
-                output
-            }
-        }
-        let handle = MetricHandle { registry, axum_handle };
-        (layer, handle)
-    };
     
     let app = Router::new()
         .merge(health::health_routes())
         .merge(signal_routes)
         .merge(webhook_routes)
         .merge(order_routes)
-        .route("/metrics", get(|| async move { metric_handle.render() }))
-        .layer(prometheus_layer)
         .with_state(Arc::new(state));
     let addr: SocketAddr = match cli.listen.parse() { Ok(a) => a, Err(e) => { tracing::error!(error=%e, "addr_parse_failed"); return Err(e.into()); } };
     tracing::info!(%addr, "binding_listener");

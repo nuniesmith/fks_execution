@@ -6,6 +6,7 @@ pub mod bybit;
 pub mod ccxt;
 pub mod kucoin;
 pub mod mock;
+pub mod openalgo;
 pub mod registry;
 
 use async_trait::async_trait;

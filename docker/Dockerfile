@@ -47,7 +47,7 @@ COPY docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Environment variables
-ENV SERVICE_NAME=fks_execution \
+ENV SERVICE_NAME=fks_execution_main \
     SERVICE_PORT=8004 \
     RUST_LOG=info
 

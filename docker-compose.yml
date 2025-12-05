@@ -1,15 +1,15 @@
 
 services:
-  fks_execution:
+  fks-execution-main:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    image: nuniesmith/fks:execution-latest
-    container_name: fks-execution
+    image: nuniesmith/fks:execution-main-latest
+    container_name: fks-execution-main
     ports:
       - "8004:8004"
     environment:
-      - SERVICE_NAME=fks_execution
+      - SERVICE_NAME=fks_execution_main
       - SERVICE_PORT=8004
       - RUST_LOG=info
       # OpenAlgo integration
